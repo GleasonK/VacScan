@@ -10,13 +10,17 @@ def PrettyStr(obj):
 def PrettyPrint(obj):
 	print(PrettyStr(obj))
 
+def GetTimestamp():
+	ct = datetime.datetime.now()
+	return ct.timestamp()
+
 def tryToParseJson(res, field):
 	data = res.read()
 	dataStr = data.decode("utf-8")
 	try:
 		return json.loads(dataStr)[field]
 	except:
-		logging.error("Invalid JSON: %s" % js)
+		logging.error("Invalid JSON: %s" % dataStr)
 		return []
 
 def GetAvailableLocations(stateAbbv):
@@ -31,7 +35,7 @@ def GetAvailableLocations(stateAbbv):
 
 	website = "www.cvs.com"
 	relativePath = "/immunizations/covid-19-vaccine.vaccine-status.%s.json" % stateAbbv
-	logging.debug("Connecting to: %s%s" % (website, website))
+	logging.debug("Connecting to: %s%s" % (website,relativePath))
 
 	conn = http.client.HTTPSConnection(website)
 	conn.request("GET", relativePath, payload, headers)
@@ -49,6 +53,9 @@ def GetAvailableLocations(stateAbbv):
 
 ## Get vaccine type info
 def getVaccineTimes(storeId, dates):
+	if storeId == "0":
+		return []
+
 	conn = http.client.HTTPSConnection("api.cvshealth.com")
 	payload = ''
 	headers = {
@@ -95,11 +102,16 @@ def getVaccineTimes(storeId, dates):
 def getStoreInfoFromResponse(vacs):
 	stores = [];
 	for loc in vacs["locations"]:
+		logging.debug(PrettyStr(loc))
+		zipCode = loc.get("addressZipCode", loc.get("zipCode", "NoZipCode"))
+		dates =  loc.get("imzAdditionalData", [{"availableDates":["UnknownDate"]}])
+		storeNumber = loc.get("StoreNumber", "0")
+		vacName = loc.get("mfrName", "UnknownVaccineType")
 		store = {
-			"Address" : "%s - %s, %s" % (loc["addressCityDescriptionText"], loc["addressLine"], loc["addressZipCode"]),
-			"Dates" : sum(list(map(lambda x: x["availableDates"], loc["imzAdditionalData"])),[]),
-			"StoreNumber" : loc["StoreNumber"],
-			"Vaccine" : loc["mfrName"]
+			"Address" : "%s - %s, %s" % (loc["addressCityDescriptionText"], loc["addressLine"], zipCode),
+			"Dates" : sum(list(map(lambda x: x["availableDates"],dates)),[]),
+			"StoreNumber" : storeNumber,
+			"Vaccine" : vacName
 		}
 		store["Times"] = getVaccineTimes(store["StoreNumber"], store["Dates"])
 		stores.append(store)
@@ -151,39 +163,34 @@ def GetVaccineTypes(city, state):
 	  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36',
 	  'content-type': 'application/json',
 	  'origin': 'https://www.cvs.com',
-	  'Cookie': '_abck=656A0664A5B9D332C43B7CE79052B9E4~-1~YAAQJZQZuBmEFHd4AQAA/n9tgQU8ojZchwR02HvTHU1IbViFRVWLCwNh0Q5WE4vRW2FYokBIxsfmj4sSs6ZXwtETKehqFJoWGL3od6pohrDamZ3gkvcJgqAz3HYfmofFy6FxjWww/MPZeItVC/Uv2izCXXBo29rXys2UHCAmO0H7mrHgV02Pb55xGAI+z2Tlk5/Sp+KZueiMh4OTSfPSm70o97rfXdOgZuEPO9gzil//cUqWwFwNj6oZDKrmAI15KSzQTeWgkxvC7koI63FrhgmsPYo3uQXOof4yWD6G2olEKLlZbbNSzo1s2XpLh8WT5i7LeqRjjCiew0j8gOShwBwSTIVl3cq5ln07AFx4C5TRLOqQ62jaRa7khc6RXDg4g51k2yUAWvHrr3gBHeZDsD1tLYMH8g==~-1~-1~-1; bm_sz=CB5F4DC5901658B5AD302F4E092162FD~YAAQJZQZuBiEFHd4AQAA/n9tgQsHN3x9Cdh9D2qrCkRsnQKsRETCAQ2tyOa0Q6KuVIZVE+zeMgOiao3AIyme7oLWzBjmGldOYm04bEJYDdfy12EiPequzGAJJv99kvD6tpoib25ojWk5de/NVqZdYbYKLtrNaPX8lhCKslgwSluDcOnUYNMNZOlM4V8X; ADRUM_BT=R:75|i:1684|g:457b95ed-aed6-4163-9788-17fb1e1ad900169901|e:214|n:customer1_d6c575ca-3f03-4481-90a7-5ad65f4a5986; affinity="500cd8f8299e60ae"; pe=p1'
+	  'Cookie': '_abck=656A0664A5B9D332C43B7CE79052B9E4~-1~YAAQJZQZuBmEFHd4AQAA/n9tgQU8ojZchwR02HvTHU1IbViFRVWLCwNh0Q5WE4vRW2FYokBIxsfmj4sSs6ZXwtETKehqFJoWGL3od6pohrDamZ3gkvcJgqAz3HYfmofFy6FxjWww/MPZeItVC/Uv2izCXXBo29rXys2UHCAmO0H7mrHgV02Pb55xGAI+z2Tlk5/Sp+KZueiMh4OTSfPSm70o97rfXdOgZuEPO9gzil//cUqWwFwNj6oZDKrmAI15KSzQTeWgkxvC7koI63FrhgmsPYo3uQXOof4yWD6G2olEKLlZbbNSzo1s2XpLh8WT5i7LeqRjjCiew0j8gOShwBwSTIVl3cq5ln07AFx4C5TRLOqQ62jaRa7khc6RXDg4g51k2yUAWvHrr3gBHeZDsD1tLYMH8g==~-1~-1~-1; pe=p1'
 	}
 	conn.request("POST", "/Services/ICEAGPV1/immunization/1.0.0/getIMZStores", payload, headers)
 	res = conn.getresponse()
 	vacs = tryToParseJson(res, "responsePayloadData")
-	if not vacs:
+	if not vacs or not vacs["locations"]:
 		return []
 
 	logging.info(PrettyStr(vacs))
 
 	return getStoreInfoFromResponse(vacs);
 
+def getDataStruct(vacs):
+	return {"Timestamp":GetTimestamp(), "Data":vacs};
+
 def GetVaccineAvailabilityInState(state):
 	locs = GetAvailableLocations(state)
 	vaccines = list(map(lambda loc: GetVaccineTypes(loc["city"], loc["state"]), locs))
-	return vaccines
+	return getDataStruct(vaccines)
 
 def GetVaccineAvailabilityInCity(citylist, state):
 	locs = list(map(lambda c: {"city": c, "state": state}, citylist))
 	vaccines = list(map(lambda loc: GetVaccineTypes(loc["city"], loc["state"]), locs))
-	return vaccines
+	return getDataStruct(vaccines)
 
 def Test():
-	#PrettyPrint(GetVaccineAvailabilityInState("MA"))
-	PrettyPrint(GetVaccineAvailabilityInCity(["Boston"], "MA"))
+	PrettyPrint(GetVaccineAvailabilityInState("OH"))
+	#PrettyPrint(GetVaccineAvailabilityInCity(["Boston"], "MA"))
 
-
-logging.getLogger().setLevel(logging.ERROR)
-Test()
-
-
-# locs = GetAvailableLocations("OH")
-# for loc in locs:
-# 	state = loc["state"]
-# 	city = loc["city"]
-# 	GetVaccineTypes(city, state)
+# logging.getLogger().setLevel(logging.DEBUG)
+# Test()

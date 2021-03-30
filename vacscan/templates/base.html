@@ -1,0 +1,36 @@
+<html>
+    <head>
+        <title>{{ title }}</title>
+    </head>
+    <body>
+        <h1>VacScan 2</h1>
+        <h2>Scan of: {{ scan.Location }}</h2>
+        <ul>
+        {% for entry in scan.Data.Data %}
+            <li>
+              <p class="location"> {{ entry[0]["Address"] }}</p>
+              <p class="vaccine"> {{ entry[0]["Vaccine"] }}</p>
+              <div class="dates">
+                <p>Available Dates:</p>
+                <ul>
+                  {% for date in entry[0].Dates %}
+                    <li> {{ date }}</li>
+                  {% endfor %}
+                </ul>
+                <div class="times">
+                  <p>Earliest Slots:</p>
+                  {% for timeEntry in entry[0].Times %}
+                    <p> {{timeEntry.Date}} </p>
+                    <ul>
+                      {% for time in timeEntry.Times %}
+                       <li> {{ time }}</li>
+                      {% endfor %}
+                    </ul>
+                  {% endfor %}
+                </div>
+              </div>
+            </li>
+        {% endfor %}
+        </ul>
+    </body>
+</html>
