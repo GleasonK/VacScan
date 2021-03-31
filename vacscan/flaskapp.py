@@ -4,6 +4,8 @@ from . import lookup
 import os
 import logging
 import json
+import pytz
+import datetime
 
 # To avoid a lookup on every request, JSON data will be stored in a file
 # with a timestamp, and if the timestamp is older than a timeout value
@@ -29,15 +31,11 @@ def getOrRefresh(query, timeout):
 		return data;
 
 	def lookupDataFromQuery(query):
-		if query.get("debug"):
-			logging.getLogger().setLevel(logging.DEBUG)
-		else:
-			logging.getLogger().setLevel(logging.ERROR)
 		if query["Kind"] == "state":
 			logging.info("Looking up by state: " + query["State"]);
 			return lookup.GetVaccineAvailabilityInState(query["State"])
 		logging.info("Looking up by city: %s, %s" % (query["City"], query["State"]));
-		return lookup.GetVaccineAvailabilityInCity(query["City"], query["State"])
+		return lookup.GetVaccineAvailabilityInCity(query["City"].split(","), query["State"])
 
 	file = getFileNameFromQuery(query)
 	logging.info("Query2File: %s -> %s" % (query, file))
@@ -50,7 +48,7 @@ def getOrRefresh(query, timeout):
 			update = False
 
 
-	if update:
+	if update or query["ForceRefresh"]:
 		data = lookupDataFromQuery(query)
 		with open(file, 'w') as jsonFile:
 			jsonFile.write(lookup.PrettyStr(data))
@@ -59,6 +57,13 @@ def getOrRefresh(query, timeout):
 
 # Process and display the vac scan page
 def VacScanPage(request):
+	logging.getLogger().setLevel(logging.DEBUG)
+
+	def parseDebugLevel(args):
+		if args.get("debug"):
+			logging.getLogger().setLevel(logging.DEBUG)
+		else:
+			logging.getLogger().setLevel(logging.ERROR)
 	def parseQueryKind(args): # no relative path traversals
 		if args.get("kind", "state") == "state":
 			return "state"
@@ -69,15 +74,24 @@ def VacScanPage(request):
 		return name;
 
 	args = request.args
+	parseDebugLevel(args)
 	queryKind = parseQueryKind(args);
 	state = sanitize(args.get("state", "MA"));
 	city = sanitize(args.get("city", "Boston"));
+	forceRefresh = args.get("forceRefresh", 0)
 
-	query = {"Kind" : queryKind, "State":state, "City":city};
-	data = getOrRefresh(query, 100*60) # refresh time 5mins
+	query = {"Kind" : queryKind, "State":state, "City":city, "ForceRefresh":forceRefresh};
+	data = getOrRefresh(query, 5*60) # refresh time 5mins
+
+	def makeTimestamp(seconds):
+		dt = datetime.datetime.fromtimestamp(seconds)
+		tz = pytz.timezone("America/New_York")
+		dt = tz.localize(dt)
+		return dt.strftime("%m-%d-%Y %I:%M%p") + " EST"
 
 	scan = {
 		"Location" : "%s %s" % (city, state),
-		"Data" : data
+		"Data" : data,
+		"Timestamp" : makeTimestamp(data["Timestamp"])
 	}
 	return render_template('base.html', title='Welcome', scan=scan)

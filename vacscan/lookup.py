@@ -14,16 +14,25 @@ def GetTimestamp():
 	ct = datetime.datetime.now()
 	return ct.timestamp()
 
-def tryToParseJson(res, field):
+def tryToParseJson(res):
 	data = res.read()
 	dataStr = data.decode("utf-8")
 	try:
-		return json.loads(dataStr)[field]
+		logging.debug("Received JSON: %s" % dataStr)
+		return {"Success":1, "Data" : json.loads(dataStr) }
 	except:
 		logging.error("Invalid JSON: %s" % dataStr)
-		return []
+		return {"Success" : 0, "Reason":"Invalid JSON: %s" % dataStr};
+
+def validateAndParse(js):
+	if js["Success"] and js["Data"].get("responseMetaData"): 
+		if not "No stores" in js["Data"]["responseMetaData"]["statusDesc"]:
+			return {"Success":1, "Data" : js["Data"].get("responsePayloadData")};
+		return {"Success" : 0, "Reason":"No stores with appointments found."};
+	return {"Success" : 0, "Reason":"Invalid JSON: %s" % js};
 
 def GetAvailableLocations(stateAbbv):
+	logging.info("State: " + stateAbbv);
 	assert (len(stateAbbv)==2) # must be OH/MA/etc
 	stateAbbv = stateAbbv.lower()
 
@@ -41,11 +50,10 @@ def GetAvailableLocations(stateAbbv):
 	conn.request("GET", relativePath, payload, headers)
 
 	res = conn.getresponse()
-	locJson = tryToParseJson(res, "responsePayloadData")
-	if not locJson:
-		return []
-
-	data = locJson["data"][stateAbbv.upper()]
+	locJson = validateAndParse(tryToParseJson(res))
+	if not locJson["Success"]:
+		return locJson
+	data = locJson["Data"]["data"][stateAbbv.upper()]
 	logging.debug("Data: %s" % PrettyStr(data))
 	available = list(filter(lambda listing: "Booked" not in listing["status"], data))
 	logging.info("Available: %s" % PrettyStr(available))
@@ -60,6 +68,9 @@ def getVaccineTimes(storeId, dates):
 	payload = ''
 	headers = {
 	  'authority': 'api.cvshealth.com',
+	  'pragma': 'no-cache',
+	  'cache-control': 'no-cache',
+	  'sec-ch-ua': '"Google Chrome";v="89", "Chromium";v="89", ";Not A Brand";v="99"',
 	  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36',
 	  'x-api-key': 'rFd64We9AwyvAFzIXsoSp8bYuewNohOZ',
 	  'content-type': 'application/json',
@@ -72,11 +83,16 @@ def getVaccineTimes(storeId, dates):
 	endDate = startDate
 
 	queryStr = "visitStartDate=%s&visitEndDate=%s&clinicId=CVS_%s" % (startDate, endDate, storeId)
-	logging.info("Query string: %s" % queryStr)
 
+	logging.debug("GetVaccineTimes with Query: %s" % queryStr)
 	conn.request("GET", "/scheduler/v3/clinics/availabletimeslots?%s" % queryStr, payload, headers)
 	res = conn.getresponse()
-	times = tryToParseJson(res, "details")
+
+	times = tryToParseJson(res)
+	if not times["Success"]:
+		return times;
+
+	times = times["Data"]["details"]
 	logging.info("Times: %s" % PrettyStr(times))
 
 	# Convert timezones
@@ -101,7 +117,8 @@ def getVaccineTimes(storeId, dates):
 
 def getStoreInfoFromResponse(vacs):
 	stores = [];
-	for loc in vacs["locations"]:
+	logging.debug(vacs)
+	for loc in vacs["Data"]["locations"]:
 		logging.debug(PrettyStr(loc))
 		zipCode = loc.get("addressZipCode", loc.get("zipCode", "NoZipCode"))
 		dates =  loc.get("imzAdditionalData", [{"availableDates":["UnknownDate"]}])
@@ -111,7 +128,8 @@ def getStoreInfoFromResponse(vacs):
 			"Address" : "%s - %s, %s" % (loc["addressCityDescriptionText"], loc["addressLine"], zipCode),
 			"Dates" : sum(list(map(lambda x: x["availableDates"],dates)),[]),
 			"StoreNumber" : storeNumber,
-			"Vaccine" : vacName
+			"Vaccine" : vacName,
+			"Success" : 1
 		}
 		store["Times"] = getVaccineTimes(store["StoreNumber"], store["Dates"])
 		stores.append(store)
@@ -123,21 +141,12 @@ def GetVaccineTypes(city, state):
 	conn = http.client.HTTPSConnection("www.cvs.com")
 	payload = json.dumps({
 	  "requestMetaData": {
-	    "appName": "CVS_WEB",
-	    "lineOfBusiness": "RETAIL",
-	    "channelName": "WEB",
-	    "deviceType": "DESKTOP",
-	    "deviceToken": "7777",
-	    "apiKey": "a2ff75c6-2da7-4299-929d-d670d827ab4a",
-	    "source": "ICE_WEB",
-	    "securityType": "apiKey",
-	    "responseFormat": "JSON",
-	    "type": "cn-dep"
+	    "appName": "CVS_WEB", "lineOfBusiness": "RETAIL",  "channelName": "WEB",
+	    "deviceType": "DESKTOP", "deviceToken": "7777", "apiKey": "a2ff75c6-2da7-4299-929d-d670d827ab4a",
+	    "source": "ICE_WEB", "securityType": "apiKey", "responseFormat": "JSON", "type": "cn-dep"
 	  },
 	  "requestPayloadData": {
-	    "selectedImmunization": [
-	      "CVD"
-	    ],
+	    "selectedImmunization": [ "CVD" ],
 	    "distanceInMiles": 35,
 	    "imzData": [
 	      {
@@ -162,20 +171,25 @@ def GetVaccineTypes(city, state):
 	  'accept': 'application/json',
 	  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36',
 	  'content-type': 'application/json',
-	  'origin': 'https://www.cvs.com',
-	  'Cookie': '_abck=656A0664A5B9D332C43B7CE79052B9E4~-1~YAAQJZQZuBmEFHd4AQAA/n9tgQU8ojZchwR02HvTHU1IbViFRVWLCwNh0Q5WE4vRW2FYokBIxsfmj4sSs6ZXwtETKehqFJoWGL3od6pohrDamZ3gkvcJgqAz3HYfmofFy6FxjWww/MPZeItVC/Uv2izCXXBo29rXys2UHCAmO0H7mrHgV02Pb55xGAI+z2Tlk5/Sp+KZueiMh4OTSfPSm70o97rfXdOgZuEPO9gzil//cUqWwFwNj6oZDKrmAI15KSzQTeWgkxvC7koI63FrhgmsPYo3uQXOof4yWD6G2olEKLlZbbNSzo1s2XpLh8WT5i7LeqRjjCiew0j8gOShwBwSTIVl3cq5ln07AFx4C5TRLOqQ62jaRa7khc6RXDg4g51k2yUAWvHrr3gBHeZDsD1tLYMH8g==~-1~-1~-1; pe=p1'
+	  'origin': 'https://www.cvs.com'
+	 # 'Cookie': '_abck=656A0664A5B9D332C43B7CE79052B9E4~-1~YAAQJZQZuBmEFHd4AQAA/n9tgQU8ojZchwR02HvTHU1IbViFRVWLCwNh0Q5WE4vRW2FYokBIxsfmj4sSs6ZXwtETKehqFJoWGL3od6pohrDamZ3gkvcJgqAz3HYfmofFy6FxjWww/MPZeItVC/Uv2izCXXBo29rXys2UHCAmO0H7mrHgV02Pb55xGAI+z2Tlk5/Sp+KZueiMh4OTSfPSm70o97rfXdOgZuEPO9gzil//cUqWwFwNj6oZDKrmAI15KSzQTeWgkxvC7koI63FrhgmsPYo3uQXOof4yWD6G2olEKLlZbbNSzo1s2XpLh8WT5i7LeqRjjCiew0j8gOShwBwSTIVl3cq5ln07AFx4C5TRLOqQ62jaRa7khc6RXDg4g51k2yUAWvHrr3gBHeZDsD1tLYMH8g==~-1~-1~-1; pe=p1'
 	}
+	logging.debug("GetVaccineTypes for: %s, %s" % (city, state))
 	conn.request("POST", "/Services/ICEAGPV1/immunization/1.0.0/getIMZStores", payload, headers)
 	res = conn.getresponse()
-	vacs = tryToParseJson(res, "responsePayloadData")
-	if not vacs or not vacs["locations"]:
-		return []
+	vacs = validateAndParse(tryToParseJson(res))
+	logging.debug("GetVaccineTypes vacs: %s" % (vacs))
+
+	if not vacs["Success"]:
+		return vacs;
 
 	logging.info(PrettyStr(vacs))
 
 	return getStoreInfoFromResponse(vacs);
 
 def getDataStruct(vacs):
+	if vacs and isinstance(vacs[0], list):
+		vacs = sum(vacs,[]); # flatten list of multiple searches
 	return {"Timestamp":GetTimestamp(), "Data":vacs};
 
 def GetVaccineAvailabilityInState(state):
@@ -190,7 +204,7 @@ def GetVaccineAvailabilityInCity(citylist, state):
 
 def Test():
 	PrettyPrint(GetVaccineAvailabilityInState("OH"))
-	#PrettyPrint(GetVaccineAvailabilityInCity(["Boston"], "MA"))
+	#PrettyPrint(GetVaccineAvailabilityInCity(["Dayton"], "OH"))
 
 # logging.getLogger().setLevel(logging.DEBUG)
 # Test()

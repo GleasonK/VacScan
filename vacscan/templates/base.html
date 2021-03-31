@@ -1,36 +1,148 @@
 <html>
-    <head>
-        <title>{{ title }}</title>
-    </head>
-    <body>
-        <h1>VacScan 2</h1>
-        <h2>Scan of: {{ scan.Location }}</h2>
-        <ul>
-        {% for entry in scan.Data.Data %}
-            <li>
-              <p class="location"> {{ entry[0]["Address"] }}</p>
-              <p class="vaccine"> {{ entry[0]["Vaccine"] }}</p>
-              <div class="dates">
-                <p>Available Dates:</p>
-                <ul>
-                  {% for date in entry[0].Dates %}
-                    <li> {{ date }}</li>
-                  {% endfor %}
-                </ul>
-                <div class="times">
-                  <p>Earliest Slots:</p>
-                  {% for timeEntry in entry[0].Times %}
-                    <p> {{timeEntry.Date}} </p>
-                    <ul>
-                      {% for time in timeEntry.Times %}
-                       <li> {{ time }}</li>
-                      {% endfor %}
-                    </ul>
-                  {% endfor %}
-                </div>
-              </div>
-            </li>
-        {% endfor %}
-        </ul>
-    </body>
+<head>
+    <title>{{ title }}</title>
+    <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/style.css') }}">
+
+</head>
+<body>
+  <div id = "header">
+    <h1>VacScan</h1>
+    <h2>Scan of: {{ scan.Location }}</h2>
+    <h4>Last Updated: {{ scan.Timestamp }} (updated every 5min)
+    <button type="button" onclick="forceRefresh()">Refresh</button></h4>
+  </div>
+  <div id = "search">
+    <h1>Search:</h1>
+    <h2>State (required):
+      <select id="state-picker">
+        <option value="AL">AL</option>
+        <option value="AK">AK</option>
+        <option value="AR">AR</option>  
+        <option value="AZ">AZ</option>
+        <option value="CA">CA</option>
+        <option value="CO">CO</option>
+        <option value="CT">CT</option>
+        <option value="DC">DC</option>
+        <option value="DE">DE</option>
+        <option value="FL">FL</option>
+        <option value="GA">GA</option>
+        <option value="HI">HI</option>
+        <option value="IA">IA</option>  
+        <option value="ID">ID</option>
+        <option value="IL">IL</option>
+        <option value="IN">IN</option>
+        <option value="KS">KS</option>
+        <option value="KY">KY</option>
+        <option value="LA">LA</option>
+        <option value="MA">MA</option>
+        <option value="MD">MD</option>
+        <option value="ME">ME</option>
+        <option value="MI">MI</option>
+        <option value="MN">MN</option>
+        <option value="MO">MO</option>  
+        <option value="MS">MS</option>
+        <option value="MT">MT</option>
+        <option value="NC">NC</option>  
+        <option value="NE">NE</option>
+        <option value="NH">NH</option>
+        <option value="NJ">NJ</option>
+        <option value="NM">NM</option>      
+        <option value="NV">NV</option>
+        <option value="NY">NY</option>
+        <option value="ND">ND</option>
+        <option value="OH">OH</option>
+        <option value="OK">OK</option>
+        <option value="OR">OR</option>
+        <option value="PA">PA</option>
+        <option value="RI">RI</option>
+        <option value="SC">SC</option>
+        <option value="SD">SD</option>
+        <option value="TN">TN</option>
+        <option value="TX">TX</option>
+        <option value="UT">UT</option>
+        <option value="VT">VT</option>
+        <option value="VA">VA</option>
+        <option value="WA">WA</option>
+        <option value="WI">WI</option>  
+        <option value="WV">WV</option>
+        <option value="WY">WY</option>
+      </select>
+    </h2>
+    <h4>City (optional): <input type="text" id="city-input" placeholder="City/zip (comma separated)"/></h4>
+    <button type="button" onclick="searchState()">Search</button>
+  </div>
+  <ul>
+  {% if not scan.Data.Data %}
+    <li class="tile">
+      <p class="location"> No appointments found. Try another search.</p>
+    </li>
+  {% endif %}  
+  {% for entry in scan.Data.Data %}
+    <li class="tile">
+      {% if entry["Success"] %}
+        <p class="location"> {{ entry["Address"] }}</p>
+        <p class="vaccine"> {{ entry["Vaccine"] }} [<a href="https://www.cvs.com/vaccine/intake/store/cvd-store-select/first-dose-select">Sign up</a>]</p>
+        <div class="dates">
+          <p>Available Dates:</p>
+          <ul>
+            {% for date in entry.Dates %}
+              <li> {{ date }}</li>
+            {% endfor %}
+          </ul>
+          <div class="times">
+            <p>Earliest Slots:</p>
+            {% for timeEntry in entry.Times %}
+              <p> {{timeEntry.Date}} </p>
+              <ul>
+                {% for time in timeEntry.Times %}
+                 <li> {{ time }}</li>
+                {% endfor %}
+              </ul>
+            {% endfor %}
+          </div>
+        </div>
+      {% else %}
+        <p class="location"> {{ entry.Reason }}</p>
+      {% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+</body>
+<script>
+
+window.onload = function(){
+  const queryString = window.location.search;
+  const urlParams = new URLSearchParams(queryString);
+  const state = urlParams.get("state");
+  if (state) {
+    document.getElementById('state-picker').value = state;
+  }
+};
+
+function forceRefresh() {
+  var url = window.location.href;
+  if (url.indexOf("forceRefresh") == -1) {
+    if (url.indexOf('?') > -1){
+       url += '&forceRefresh=1'
+    }else{
+       url += '?forceRefresh=1'
+    }
+  }   
+  window.location.href = url;
+}
+
+function searchState() {
+  var state = document.getElementById('state-picker').value;
+  var city = document.getElementById('city-input').value;
+  var kind = city ? "city" : "state";
+  var query = '?kind=' + kind + '&state=' + state + (city ? "&city="+city : "");
+ // /scan?kind=state&state=OH&debug=1
+  window.location = '/scan' + query;
+}
+
+function searchCity() {
+
+}
+
+</script>
 </html>
