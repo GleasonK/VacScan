@@ -42,6 +42,7 @@ h1, h2, h3, h4 {
   transition: all 150ms ease-in-out;
   border: none;
   margin: 5px;
+  padding: 5px;
 }
 
 #search select {
@@ -51,10 +52,6 @@ h1, h2, h3, h4 {
   transition: all 150ms ease-in-out;
   border: none;
   margin: 5px;
-}
-
-.third {
-
 }
 
 .location {
