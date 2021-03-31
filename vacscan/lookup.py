@@ -24,12 +24,17 @@ def tryToParseJson(res):
 		logging.error("Invalid JSON: %s" % dataStr)
 		return {"Success" : 0, "Reason":"Invalid JSON: %s" % dataStr};
 
-def validateAndParse(js):
-	if js["Success"] and js["Data"].get("responseMetaData"): 
-		if not "No stores" in js["Data"]["responseMetaData"]["statusDesc"]:
+def validateAndParse(js, queryStr):
+	if js["Success"] and js["Data"].get("responseMetaData"):
+		status = js["Data"]["responseMetaData"]["statusCode"]
+		if "0000" in status:
 			return {"Success":1, "Data" : js["Data"].get("responsePayloadData")};
-		return {"Success" : 0, "Reason":"No stores with appointments found."};
-	return {"Success" : 0, "Reason":"Invalid JSON: %s" % js};
+		if "0001" in status:
+			return {"Success" : 0, "Reason": "[%s] Error %s - Zip code not found in state." % (queryStr, status) };
+		if "1010" and "getStoreDetails" in js["Data"]["responseMetaData"]["statusDesc"]:
+			return {"Success" : 0, "Reason": "[%s] Error %s - Zip code / city not found in state." % (queryStr, status) };
+		return {"Success" : 0, "Reason": "[%s] Error %s - %s" % (queryStr, status, js["Data"]["responseMetaData"]["statusDesc"]) };
+	return {"Success" : 0, "Reason": "[%s] %s" % (queryStr, "Invalid CVS Response: %s" % js)};
 
 def GetAvailableLocations(stateAbbv):
 	logging.info("State: " + stateAbbv);
@@ -50,7 +55,7 @@ def GetAvailableLocations(stateAbbv):
 	conn.request("GET", relativePath, payload, headers)
 
 	res = conn.getresponse()
-	locJson = validateAndParse(tryToParseJson(res))
+	locJson = validateAndParse(tryToParseJson(res), stateAbbv)
 	if not locJson["Success"]:
 		return locJson
 	data = locJson["Data"]["data"][stateAbbv.upper()]
@@ -116,10 +121,11 @@ def getVaccineTimes(storeId, dates):
 	return localTimes
 
 def getStoreInfoFromResponse(vacs):
+	logging.debug("getStoreInfoFromResponse vacs_input: %s\n\n" % vacs)
 	stores = [];
 	logging.debug(vacs)
 	for loc in vacs["Data"]["locations"]:
-		logging.debug(PrettyStr(loc))
+		logging.debug("getStoreInfoFromResponse loc=%s" % (loc))
 		zipCode = loc.get("addressZipCode", loc.get("zipCode", "NoZipCode"))
 		dates =  loc.get("imzAdditionalData", [{"availableDates":["UnknownDate"]}])
 		storeNumber = loc.get("StoreNumber", "0")
@@ -132,8 +138,9 @@ def getStoreInfoFromResponse(vacs):
 			"Success" : 1
 		}
 		store["Times"] = getVaccineTimes(store["StoreNumber"], store["Dates"])
+		logging.info("getStoreInfoFromResponse res=: %s" % (store))
 		stores.append(store)
-	logging.info("Stores: %s" % PrettyStr(stores))
+	logging.info("getStoreInfoFromResponse results=: %s" % (stores))
 	return stores
 
 def GetVaccineTypes(city, state):
@@ -177,13 +184,13 @@ def GetVaccineTypes(city, state):
 	logging.debug("GetVaccineTypes for: %s, %s" % (city, state))
 	conn.request("POST", "/Services/ICEAGPV1/immunization/1.0.0/getIMZStores", payload, headers)
 	res = conn.getresponse()
-	vacs = validateAndParse(tryToParseJson(res))
+	vacs = validateAndParse(tryToParseJson(res), "%s, %s" % (city, state))
 	logging.debug("GetVaccineTypes vacs: %s" % (vacs))
 
 	if not vacs["Success"]:
 		return vacs;
 
-	logging.info(PrettyStr(vacs))
+	logging.info("GetVaccineTypes res=%s" % (vacs))
 
 	return getStoreInfoFromResponse(vacs);
 

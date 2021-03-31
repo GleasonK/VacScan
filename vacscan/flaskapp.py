@@ -18,7 +18,7 @@ def getFileNameFromQuery(query):
 	kind = query["Kind"]
 	if kind == "state":
 		return path + kind + "_" + replacePunct(query["State"]) + ".json"
-	return path + kind + "_" + replacePunct(query["State"]) + '_' + replacePunct(query["City"]) + ".json"
+	return path + kind + "_" + replacePunct(query["State"]) + '_' + replacePunct('_'.join(query["City"])) + ".json"
 
 def getOrRefresh(query, timeout):
 	def readJson(file):
@@ -35,7 +35,7 @@ def getOrRefresh(query, timeout):
 			logging.info("Looking up by state: " + query["State"]);
 			return lookup.GetVaccineAvailabilityInState(query["State"])
 		logging.info("Looking up by city: %s, %s" % (query["City"], query["State"]));
-		return lookup.GetVaccineAvailabilityInCity(query["City"].split(","), query["State"])
+		return lookup.GetVaccineAvailabilityInCity(query["City"], query["State"])
 
 	file = getFileNameFromQuery(query)
 	logging.info("Query2File: %s -> %s" % (query, file))
@@ -77,10 +77,11 @@ def VacScanPage(request):
 	parseDebugLevel(args)
 	queryKind = parseQueryKind(args);
 	state = sanitize(args.get("state", "MA"));
-	city = sanitize(args.get("city", "Boston" if queryKind=="city" else ""));
+	city = sanitize(args.get("city", "Boston" if queryKind=="city" else "")).split(",");
 	forceRefresh = args.get("forceRefresh", 0)
 
 	query = {"Kind" : queryKind, "State":state, "City":city, "ForceRefresh":forceRefresh};
+	logging.debug("VacScanPage Query: %s" % query)
 	data = getOrRefresh(query, 5*60) # refresh time 5mins
 
 	def makeTimestamp(seconds):
