@@ -68,7 +68,13 @@
           <option value="WY">WY</option>
         </select>
       </h3>
-      <h4>City (optional): <input type="text" id="city-input" placeholder="City/zip (comma separated)"/></h4>
+      <h4>City or Zip (optional): <input type="text" id="city-input" placeholder="City/zip (comma separated)"/></h4>
+      <fieldset>
+        <div id="dose-select">
+            <label for="first-dose">First Dose <input type="radio" id="first-dose" name="dose" value="first"></label>
+            <label for="second-dose">Second Dose  <input type="radio" id="second-dose" name="dose" value="second"></label>
+        </div>
+      </fieldset>
       <button type="button" onclick="searchState()">Search</button> <button id="myBtn">Tips / Help</button>
       <input type="checkbox" id="show-json" onclick="toggleJsonResponses()"> Show CVS dev data
       <p><i>Allow ~1 second per city searched, ~10sec for a state search.</i></p>
@@ -85,7 +91,13 @@
       <li class="tile">
         {% if entry["Success"] %}
         <p class="location"> {{ entry["Address"] }}</p>
-        <p class="vaccine"> {{ entry["Vaccine"] }} [<a href="https://www.cvs.com/vaccine/intake/store/cvd-store-select/first-dose-select">Sign up</a>]</p>
+        <p class="vaccine"> {{ entry["Vaccine"] }} 
+          {% if scan.Dose == "first" %}
+            [<a href="https://www.cvs.com/vaccine/intake/store/cvd-store-select/first-dose-select" target="_blank" rel="noopener noreferrer">Sign up</a>]
+          {% else %}
+            [<a href="https://www.cvs.com/vaccine/intake/store/cvd/first-dose-info" target="_blank" rel="noopener noreferrer">Sign up</a>]
+          {% endif %}
+        </p>
         <div class="dates">
           <p>Available Dates:</p>
           <ul>
@@ -96,12 +108,15 @@
           <div class="times">
             <p>Earliest Slots:</p>
             {% for timeEntry in entry.Times %}
-            <p> {{timeEntry.Date}} </p>
-            <ul>
-              {% for time in timeEntry.Times %}
-              <li> {{ time }}</li>
-              {% endfor %}
-            </ul>
+              <p> {{timeEntry.Date}} </p>
+              {% if not timeEntry.Times %}
+                <p><i>No times found. Check on CVS website, might be a bug on their end.</i></p>
+              {% endif %}
+              <ul>
+                {% for time in timeEntry.Times %}
+                <li> {{ time }}</li>
+                {% endfor %}
+              </ul>
             {% endfor %}
           </div>
         </div>
@@ -145,12 +160,17 @@
       const urlParams = new URLSearchParams(queryString);
       const state = urlParams.get("state");
       const city = urlParams.get("city");
+      var dose = urlParams.get("dose");
       if (state) {
         document.getElementById('state-picker').value = state;
       }
       if (city) {
         document.getElementById('city-input').value = city;
       }
+      if (!dose) {
+        dose = "first";
+      }
+      setRadioButtonValue(dose);
       toggleJsonResponses();
     };
 
@@ -169,10 +189,33 @@
    function searchState() {
     var state = document.getElementById('state-picker').value;
     var city = document.getElementById('city-input').value;
+    var dose = getRadioButtonValue();
     var kind = city ? "city" : "state";
-    var query = '?kind=' + kind + '&state=' + state + (city ? "&city="+city : "");
- // /scan?kind=state&state=OH&debug=1
- window.location = '/scan' + query;
+    var query = '?kind=' + kind + '&state=' + state + 
+                                  (city ? "&city="+city : "") + 
+                                  (dose=="second" ? ("&dose="+dose) : "");
+   // /scan?kind=state&state=OH&debug=1
+   window.location = '/scan' + query;
+  }
+
+/* Radio button */
+function getRadioButtonValue() {
+  var radios = document.getElementsByName('dose');
+  for (var i = 0, length = radios.length; i < length; i++) {
+    if (radios[i].checked) {
+      return radios[i].value;
+    }
+  }
+  return "first"; // default
+}
+function setRadioButtonValue(dose) {
+  var radios = document.getElementsByName('dose');
+  for (var i = 0, length = radios.length; i < length; i++) {
+    if (radios[i].value == dose) {
+      radios[i].checked = true;
+      return;
+    }
+  }
 }
 
 

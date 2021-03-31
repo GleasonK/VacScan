@@ -89,7 +89,7 @@ def getVaccineTimes(storeId, dates):
 	}
 
 	startDate = dates[0]
-	endDate = startDate
+	endDate = dates[-1]
 
 	queryStr = "visitStartDate=%s&visitEndDate=%s&clinicId=CVS_%s" % (startDate, endDate, storeId)
 
@@ -98,9 +98,9 @@ def getVaccineTimes(storeId, dates):
 	res = conn.getresponse()
 
 	times = tryToParseJson(res)
-	if not times["Success"]:
-		return times;
-
+	if not times["Success"] or times["Data"]["header"]["statusCode"] == "6007":
+		return [times];
+	logging.debug("GetVaccineTimes times=%s" % times)
 	times = times["Data"]["details"]
 	logging.info("Times: %s" % PrettyStr(times))
 
@@ -147,7 +147,7 @@ def getStoreInfoFromResponse(vacs):
 	logging.info("getStoreInfoFromResponse results=: %s" % (stores))
 	return stores
 
-def GetVaccineTypes(city, state):
+def GetVaccineTypes(city, state, dose):
 	time.sleep(0.25);
 	addressQuery = "%s, %s" % (city, state);
 	conn = http.client.HTTPSConnection("www.cvs.com")
@@ -178,7 +178,8 @@ def GetVaccineTypes(city, state):
 	          "59676058015",
 	          "80777027399"
 	        ],
-	        "allocationType": "1"
+	        "allocationType": "3" if dose == "second" else "1",
+	        "firstDoseDate": "02-01-2021" if dose == "second" else ""
 	      }
 	    ],
 	    "searchCriteria": {
@@ -206,26 +207,32 @@ def GetVaccineTypes(city, state):
 		return vacs;
 
 	logging.info("GetVaccineTypes res=%s" % (vacs))
-
 	return getStoreInfoFromResponse(vacs);
 
 def getDataStruct(vacs):
-	def flatten(vac):
-		if isinstance(vac, list):
-			return vac[0];
-		return vac;
-	vacs = list(map(flatten,vacs)) # flatten list of multiple searches
+	def flatten(vacs):
+		flat = [];
+		for vac in vacs:
+			logging.debug("vac_ele = %s" % vac)
+			if isinstance(vac, list):
+				flat.extend(vac)
+			else:
+				flat.append(vac)
+		return flat;
+	vacs = flatten(vacs) # flatten list of multiple searches
 	return {"Timestamp":GetTimestamp(), "Data":vacs};
 
-def GetVaccineAvailabilityInState(state):
+def GetVaccineAvailabilityInState(state, dose):
 	locs = GetAvailableLocations(state)
-	vaccines = list(map(lambda loc: GetVaccineTypes(loc["city"], loc["state"]), locs))
+	vaccines = list(map(lambda loc: GetVaccineTypes(loc["city"], loc["state"], dose), locs))
 	return getDataStruct(vaccines)
 
-def GetVaccineAvailabilityInCity(citylist, state):
+def GetVaccineAvailabilityInCity(citylist, state, dose):
 	def sleepAndSearch(loc):
 		time.sleep(0.5);
-		return GetVaccineTypes(loc["city"], loc["state"])
+		vacs =  GetVaccineTypes(loc["city"], loc["state"], dose)
+		logging.debug("GetVaccineAvailabilityInCity vacs=%s" % vacs)
+		return vacs;
 	locs = list(map(lambda c: {"city": c, "state": state}, citylist))
 	vaccines = list(map(sleepAndSearch, locs))
 	return getDataStruct(vaccines)

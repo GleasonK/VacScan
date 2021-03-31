@@ -16,9 +16,11 @@ def getFileNameFromQuery(query):
 	logging.info("Query: " + lookup.PrettyStr(query))
 	path = "vacscan/data/"
 	kind = query["Kind"]
+	state = query["State"]
+	dose = query["Dose"]
 	if kind == "state":
-		return path + kind + "_" + replacePunct(query["State"]) + ".json"
-	return path + kind + "_" + replacePunct(query["State"]) + '_' + replacePunct('_'.join(query["City"])) + ".json"
+		return path + kind + "_" + replacePunct(state) + "_" + replacePunct(dose) + ".json"
+	return path + kind + "_" + replacePunct(state) + '_' + replacePunct('_'.join(query["City"])) + "_" + replacePunct(dose) + ".json"
 
 def getOrRefresh(query, timeout):
 	def readJson(file):
@@ -31,11 +33,14 @@ def getOrRefresh(query, timeout):
 		return data;
 
 	def lookupDataFromQuery(query):
+		state = query["State"]
+		city = query["City"]
+		dose = query["Dose"]
 		if query["Kind"] == "state":
-			logging.info("Looking up by state: " + query["State"]);
-			return lookup.GetVaccineAvailabilityInState(query["State"])
-		logging.info("Looking up by city: %s, %s" % (query["City"], query["State"]));
-		return lookup.GetVaccineAvailabilityInCity(query["City"], query["State"])
+			logging.info("Looking up by state: %s, %s" % (state, dose));
+			return lookup.GetVaccineAvailabilityInState(state, dose)
+		logging.info("Looking up by city: %s, %s, %s" % (city, state,dose));
+		return lookup.GetVaccineAvailabilityInCity(city, state, dose)
 
 	file = getFileNameFromQuery(query)
 	logging.info("Query2File: %s -> %s" % (query, file))
@@ -78,11 +83,19 @@ def VacScanPage(request):
 	queryKind = parseQueryKind(args);
 	state = sanitize(args.get("state", "MA"));
 	city = sanitize(args.get("city", "Boston" if queryKind=="city" else "")).split(",");
+	dose = sanitize(args.get("dose", "first"))
 	forceRefresh = args.get("forceRefresh", 0)
 
-	query = {"Kind" : queryKind, "State":state, "City":city, "ForceRefresh":forceRefresh};
+	query = {"Kind" : queryKind, "State":state, "City":city, "Dose":dose, "ForceRefresh":forceRefresh};
 	logging.debug("VacScanPage Query: %s" % query)
-	data = getOrRefresh(query, 2*60) # refresh time 2mins
+
+	if len(city) > 8:
+		data = {
+    		"Data": [  { "Reason": "Error: Max of 8 city/zips at a time, %s city/zips provided. Remove a few values from search." % len(city), "Success": 0 } ],
+    		"Timestamp": 1617209242.740845
+		};
+	else:
+		data = getOrRefresh(query, 2*60) # refresh time 2mins
 
 	def makeTimestamp(seconds):
 		dt = datetime.datetime.fromtimestamp(seconds)
@@ -93,6 +106,8 @@ def VacScanPage(request):
 	scan = {
 		"Location" : "%s %s" % (city, state),
 		"Data" : data,
-		"Timestamp" : makeTimestamp(data["Timestamp"])
+		"Timestamp" : makeTimestamp(data["Timestamp"]),
+		"Dose" : dose
 	}
+	logging.info("VacScanPage scan=%s" % scan)
 	return render_template('base.html', title='Welcome', scan=scan)

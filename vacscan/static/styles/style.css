@@ -110,6 +110,19 @@ h1, h2, h3, h4 {
   margin-left: 15em;  
 }
 
+/* Radio buttons */
+fieldset {
+	border: none;
+	margin: 5px 0px;
+}
+
+#dose-select {
+}
+
+input[type=radio] {
+  margin-right: 8px;
+}
+
 /* These are optional changes I make to my css. */
 
 * {
