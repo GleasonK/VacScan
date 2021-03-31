@@ -13,7 +13,7 @@
   </div>
   <div id = "search">
     <h1>Search:</h1>
-    <h2>State (required):
+    <h3>State (required):
       <select id="state-picker">
         <option value="AL">AL</option>
         <option value="AK">AK</option>
@@ -67,11 +67,13 @@
         <option value="WV">WV</option>
         <option value="WY">WY</option>
       </select>
-    </h2>
+    </h3>
     <h4>City (optional): <input type="text" id="city-input" placeholder="City/zip (comma separated)"/></h4>
     <button type="button" onclick="searchState()">Search</button>
+    <p><i>If state search shows no results, try a zomma separated list of zip codes near you.</i></p> 
+    <p><i>CVS is weird about updating their state listings.</i></p>
   </div>
-  <ul>
+  <ul id="results">
   {% if not scan.Data.Data %}
     <li class="tile">
       <p class="location"> No appointments found. Try another search.</p>
