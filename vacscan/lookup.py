@@ -148,6 +148,7 @@ def getStoreInfoFromResponse(vacs):
 	return stores
 
 def GetVaccineTypes(city, state):
+	time.sleep(0.25);
 	addressQuery = "%s, %s" % (city, state);
 	conn = http.client.HTTPSConnection("www.cvs.com")
 	payload = json.dumps({
