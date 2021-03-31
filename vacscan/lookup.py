@@ -30,11 +30,11 @@ def validateAndParse(js, queryStr):
 		if "0000" in status:
 			return {"Success":1, "Data" : js["Data"].get("responsePayloadData")};
 		if "0001" in status:
-			return {"Success" : 0, "Reason": "[%s] Error %s - Zip code not found in state." % (queryStr, status) };
+			return {"Success" : 0, "Reason": "[%s] Error %s - Error looking up zip code, search by city name." % (queryStr, status), "Response" : PrettyStr(js) };
 		if "1010" and "getStoreDetails" in js["Data"]["responseMetaData"]["statusDesc"]:
 			return {"Success" : 0, "Reason": "[%s] Error %s - Zip code / city not found in state." % (queryStr, status) };
-		return {"Success" : 0, "Reason": "[%s] Error %s - %s" % (queryStr, status, js["Data"]["responseMetaData"]["statusDesc"]) };
-	return {"Success" : 0, "Reason": "[%s] %s" % (queryStr, "Invalid CVS Response: %s" % js)};
+		return {"Success" : 0, "Reason": "[%s] Error %s - %s" % (queryStr, status, js["Data"]["responseMetaData"]["statusDesc"]),  "Response" : PrettyStr(js) };
+	return {"Success" : 0, "Reason": "[%s] %s" % (queryStr, "Invalid CVS Response"),  "Response" : PrettyStr(js)};
 
 def GetAvailableLocations(stateAbbv):
 	logging.info("State: " + stateAbbv);

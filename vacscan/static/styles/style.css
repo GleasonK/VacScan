@@ -35,7 +35,7 @@ h1, h2, h3, h4 {
   margin: 5px;
 }
 
-#search input {
+#search input[type="button"] {
   width:200px;
   height:25px;
   border-color: blue;
@@ -52,6 +52,14 @@ h1, h2, h3, h4 {
   transition: all 150ms ease-in-out;
   border: none;
   margin: 5px;
+}
+
+#show-json {
+	width: 25px;
+    padding: 0px;
+    margin-left: 15px;
+    height: 25px;
+    vertical-align: middle;
 }
 
 .location {
