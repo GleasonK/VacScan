@@ -82,7 +82,7 @@ def VacScanPage(request):
 
 	query = {"Kind" : queryKind, "State":state, "City":city, "ForceRefresh":forceRefresh};
 	logging.debug("VacScanPage Query: %s" % query)
-	data = getOrRefresh(query, 5*60) # refresh time 5mins
+	data = getOrRefresh(query, 2*60) # refresh time 2mins
 
 	def makeTimestamp(seconds):
 		dt = datetime.datetime.fromtimestamp(seconds)
