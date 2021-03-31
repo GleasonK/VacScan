@@ -77,7 +77,7 @@ def VacScanPage(request):
 	parseDebugLevel(args)
 	queryKind = parseQueryKind(args);
 	state = sanitize(args.get("state", "MA"));
-	city = sanitize(args.get("city", "Boston"));
+	city = sanitize(args.get("city", "Boston" if queryKind=="city" else ""));
 	forceRefresh = args.get("forceRefresh", 0)
 
 	query = {"Kind" : queryKind, "State":state, "City":city, "ForceRefresh":forceRefresh};

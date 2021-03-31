@@ -188,8 +188,11 @@ def GetVaccineTypes(city, state):
 	return getStoreInfoFromResponse(vacs);
 
 def getDataStruct(vacs):
-	if vacs and isinstance(vacs[0], list):
-		vacs = sum(vacs,[]); # flatten list of multiple searches
+	def flatten(vac):
+		if isinstance(vac, list):
+			return vac[0];
+		return vac;
+	vacs = list(map(flatten,vacs)) # flatten list of multiple searches
 	return {"Timestamp":GetTimestamp(), "Data":vacs};
 
 def GetVaccineAvailabilityInState(state):
