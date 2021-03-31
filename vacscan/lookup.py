@@ -3,6 +3,7 @@ import logging
 import json
 import datetime
 import pytz
+import time
 
 def PrettyStr(obj):
 	return json.dumps(obj, sort_keys=True, indent=4)
@@ -34,6 +35,9 @@ def validateAndParse(js, queryStr):
 		if "1010" and "getStoreDetails" in js["Data"]["responseMetaData"]["statusDesc"]:
 			return {"Success" : 0, "Reason": "[%s] Error %s - Zip code / city not found in state." % (queryStr, status) };
 		return {"Success" : 0, "Reason": "[%s] Error %s - %s" % (queryStr, status, js["Data"]["responseMetaData"]["statusDesc"]),  "Response" : PrettyStr(js) };
+	if "Your traffic behavior" in PrettyStr(js):
+		return {"Success" : 0, "Reason": "[%s] %s" % (queryStr, "CVS hates us and blocked us for a minute. Wait a minute, and try searching again with less cities."),  "Response" : PrettyStr(js)};
+
 	return {"Success" : 0, "Reason": "[%s] %s" % (queryStr, "Invalid CVS Response"),  "Response" : PrettyStr(js)};
 
 def GetAvailableLocations(stateAbbv):
@@ -208,8 +212,11 @@ def GetVaccineAvailabilityInState(state):
 	return getDataStruct(vaccines)
 
 def GetVaccineAvailabilityInCity(citylist, state):
+	def sleepAndSearch(loc):
+		time.sleep(0.5);
+		return GetVaccineTypes(loc["city"], loc["state"])
 	locs = list(map(lambda c: {"city": c, "state": state}, citylist))
-	vaccines = list(map(lambda loc: GetVaccineTypes(loc["city"], loc["state"]), locs))
+	vaccines = list(map(sleepAndSearch, locs))
 	return getDataStruct(vaccines)
 
 def Test():
