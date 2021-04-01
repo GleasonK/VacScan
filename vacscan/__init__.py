@@ -2,6 +2,7 @@ import os
 import logging
 
 from flask import Flask
+from flask import Response
 from flask import request
 from vacscan import flaskapp
 
@@ -35,6 +36,11 @@ def create_app(test_config=None):
     def vacscan():
         logging.getLogger().setLevel(logging.ERROR) # FIXME
         return flaskapp.VacScanPage(request)
+
+    @app.errorhandler(404)
+    def page_not_found(e):
+        # Little experiment
+        return Response("{'success':0}", status=403, mimetype='application/json')
 
     return app
 
