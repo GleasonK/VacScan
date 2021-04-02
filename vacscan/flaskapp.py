@@ -87,7 +87,7 @@ def VacScanPage(request):
 	forceRefresh = args.get("forceRefresh", 0)
 
 	query = {"Kind" : queryKind, "State":state, "City":city, "Dose":dose, "ForceRefresh":forceRefresh};
-	logging.debug("VacScanPage Query: %s" % query)
+	logging.debug("[VacScanPage] Query: %s" % query)
 
 	if len(city) > 8:
 		data = {

@@ -1,10 +1,40 @@
-import os
+import os, pwd, grp
 import logging
 
 from flask import Flask
 from flask import Response
 from flask import request
 from vacscan import flaskapp
+from sys import platform
+
+
+
+def drop_privileges(uid_name='nobody', gid_name='nogroup'):
+    # https://stackoverflow.com/questions/2699907/dropping-root-permissions-in-python
+    logging.debug("[drop_privileges] Dropping privileges to %s, %s" % (uid_name, gid_name))
+    if platform != "linux" and platform != "linux2":
+        logging.debug("[drop_privileges] No action, not linux.")
+        return;
+
+    if os.getuid() != 0:
+        logging.debug("[drop_privileges] No action, not root.")
+        # We're not root so, like, whatever dude
+        return
+
+    # Get the uid/gid from the name
+    running_uid = pwd.getpwnam(uid_name).pw_uid
+    running_gid = grp.getgrnam(gid_name).gr_gid
+
+    # Remove group privileges
+    os.setgroups([])
+
+    # Try setting the new uid/gid
+    os.setgid(running_gid)
+    os.setuid(running_uid)
+
+    # Ensure a very conservative umask
+    old_umask = os.umask(077)
+    logging.debug("[drop_privileges] Successfully dropped privileges.")
 
 def create_app(test_config=None):
     # create and configure the app
@@ -43,6 +73,7 @@ def create_app(test_config=None):
         # Little experiment
         return Response("{'success':0}", status=403, mimetype='application/json')
 
+    drop_privileges();
     return app
 
 logging.getLogger().setLevel(logging.ERROR)
